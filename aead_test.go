@@ -91,3 +91,70 @@ func TestChaCha20Poly1305(t *testing.T) {
 		t.Fatalf("Open: Plaintext mismatch")
 	}
 }
+
+func benchmarkChaCha20Poly1305Seal(b *testing.B, n int) {
+	var key [KeySize]byte
+	var nonce [NonceSize]byte
+
+	a, err := New(key[:])
+	if err != nil {
+		b.Fatalf("Failed to instantiate AEAD instance: %v", err)
+	}
+
+	var ad [13]byte // The crypto/cipher benchmarks use this size.
+	plaintext := make([]byte, n)
+	b.SetBytes(int64(n))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = a.Seal(nil, nonce[:], plaintext, ad[:])
+	}
+}
+
+func benchmarkChaCha20Poly1305Open(b *testing.B, n int) {
+	var key [KeySize]byte
+	var nonce [NonceSize]byte
+
+	a, err := New(key[:])
+	if err != nil {
+		b.Fatalf("Failed to instantiate AEAD instance: %v", err)
+	}
+
+	plaintext := make([]byte, n)
+	var ad [13]byte // The crypto/cipher benchmarks use this size.
+	ciphertext := a.Seal(nil, nonce[:], plaintext, ad[:])
+	b.SetBytes(int64(n))
+	b.ResetTimer()
+
+	b.SetBytes(int64(n))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := a.Open(plaintext[:0], nonce[:], ciphertext, ad[:])
+		if err != nil {
+			b.Fatalf("Failed to open ciphertext: %v", err)
+		}
+	}
+}
+
+func BenchmarkChaCha20Poly1305Seal1K(b *testing.B) {
+	benchmarkChaCha20Poly1305Seal(b, 1024)
+}
+
+func BenchmarkChaCha20Poly1305Open1K(b *testing.B) {
+	benchmarkChaCha20Poly1305Open(b, 1024)
+}
+
+func BenchmarkChaCha20Poly1305Seal4K(b *testing.B) {
+	benchmarkChaCha20Poly1305Seal(b, 4096)
+}
+
+func BenchmarkChaCha20Poly1305Open4K(b *testing.B) {
+	benchmarkChaCha20Poly1305Open(b, 4096)
+}
+
+func BenchmarkChaCha20Poly1305Seal8K(b *testing.B) {
+	benchmarkChaCha20Poly1305Seal(b, 8192)
+}
+
+func BenchmarkChaCha20Poly1305Open8K(b *testing.B) {
+	benchmarkChaCha20Poly1305Open(b, 8192)
+}
