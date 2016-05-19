@@ -70,7 +70,7 @@ func TestChaCha20Poly1305(t *testing.T) {
 		0x7e, 0x90, 0x2e, 0xcb, 0xd0, 0x60, 0x06, 0x91,
 	}
 
-	a, err := New(key)
+	a, err := New(key, 16)
 	if err != nil {
 		t.Fatalf("Failed to instantiate AEAD instance: %v", err)
 	}
@@ -96,7 +96,7 @@ func benchmarkChaCha20Poly1305Seal(b *testing.B, n int) {
 	var key [KeySize]byte
 	var nonce [NonceSize]byte
 
-	a, err := New(key[:])
+	a, err := New(key[:], 16)
 	if err != nil {
 		b.Fatalf("Failed to instantiate AEAD instance: %v", err)
 	}
@@ -114,7 +114,7 @@ func benchmarkChaCha20Poly1305Open(b *testing.B, n int) {
 	var key [KeySize]byte
 	var nonce [NonceSize]byte
 
-	a, err := New(key[:])
+	a, err := New(key[:], 16)
 	if err != nil {
 		b.Fatalf("Failed to instantiate AEAD instance: %v", err)
 	}

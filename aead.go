@@ -40,12 +40,16 @@ var (
 	// ErrOpen is the error returned when an Open fails.
 	ErrOpen = errors.New("chacha20poly1305: message authentication failed")
 
+	// ErrInvalidTagSize is the error returned when the tag size is > 16
+	ErrInvalidTagSize = errors.New("chacha20poly1305: invalid tag size")
+
 	paddingBytes [16]byte
 )
 
 // ChaCha20Poly1305 is an AEAD_CHACHA20_POLY1305 instance.
 type ChaCha20Poly1305 struct {
-	key [KeySize]byte
+	key     [KeySize]byte
+	tagSize uint8
 }
 
 // NonceSize returns the size of the nonce that must be passed to Seal
@@ -57,7 +61,7 @@ func (a *ChaCha20Poly1305) NonceSize() int {
 // Overhead returns the maximum difference between the lengths of a
 // plaintext and its ciphertext.
 func (a *ChaCha20Poly1305) Overhead() int {
-	return Overhead
+	return int(a.tagSize)
 }
 
 func (a *ChaCha20Poly1305) init(nonce []byte) (*chacha20.Cipher, *poly1305.Poly1305) {
@@ -138,6 +142,7 @@ func (a *ChaCha20Poly1305) Seal(dst, nonce, plaintext, additionalData []byte) []
 
 	// Return `dst | ciphertext | tag.
 	ret = m.Sum(ret)
+	ret = ret[:len(ret)-Overhead+int(a.tagSize)]
 	return append(dst, ret...)
 }
 
@@ -150,10 +155,10 @@ func (a *ChaCha20Poly1305) Seal(dst, nonce, plaintext, additionalData []byte) []
 // Even if the function fails, the contents of dst, up to its capacity,
 // may be overwritten.
 func (a *ChaCha20Poly1305) Open(dst, nonce, ciphertext, additionalData []byte) ([]byte, error) {
-	if len(ciphertext) < Overhead {
+	if len(ciphertext) < int(a.tagSize) {
 		return nil, ErrOpen
 	}
-	ctLen := len(ciphertext) - Overhead
+	ctLen := len(ciphertext) - int(a.tagSize)
 
 	c, m := a.init(nonce)
 	defer c.Reset()
@@ -172,7 +177,7 @@ func (a *ChaCha20Poly1305) Open(dst, nonce, ciphertext, additionalData []byte) (
 	binary.LittleEndian.PutUint64(lenBuf[0:], uint64(ctLen))
 	m.Write(lenBuf[:])
 	derivedTag := m.Sum(nil)
-	if subtle.ConstantTimeCompare(ciphertext[ctLen:], derivedTag[:]) != 1 {
+	if subtle.ConstantTimeCompare(ciphertext[ctLen:ctLen+int(a.tagSize)], derivedTag[:a.tagSize]) != 1 {
 		memwipe(dst)
 		return nil, ErrOpen
 	}
@@ -190,12 +195,15 @@ func (a *ChaCha20Poly1305) Reset() {
 }
 
 // New returns a new ChaCha20Poly1305 instance, keyed with a given key.
-func New(key []byte) (*ChaCha20Poly1305, error) {
+func New(key []byte, tagSize uint8) (*ChaCha20Poly1305, error) {
 	if len(key) != KeySize {
 		return nil, chacha20.ErrInvalidKey
 	}
+	if tagSize > 16 {
+		return nil, ErrInvalidTagSize
+	}
 
-	a := &ChaCha20Poly1305{}
+	a := &ChaCha20Poly1305{tagSize: tagSize}
 	copy(a.key[:], key)
 	return a, nil
 }
